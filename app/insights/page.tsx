@@ -189,9 +189,9 @@ export default function InsightsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-background">
       <div>
-        <h1 className="text-2xl font-semibold">💡 Insights</h1>
+        <h1 className="text-2xl font-semibold text-foreground">💡 Insights</h1>
         <p className="text-muted-foreground">Discover valuable insights from your customer conversations</p>
       </div>
 

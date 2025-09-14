@@ -107,9 +107,9 @@ export default function ConversationsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-background">
       <div>
-        <h1 className="text-2xl font-semibold">📞 Conversations</h1>
+        <h1 className="text-2xl font-semibold text-foreground">📞 Conversations</h1>
         <p className="text-muted-foreground">Manage and analyze your customer conversations</p>
       </div>
 

@@ -169,9 +169,9 @@ export default function DashboardPage() {
   const maxCount = Math.max(...Object.values(categoryCounts));
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-6 space-y-8 bg-background">
       <div>
-        <h1 className="text-2xl font-semibold">📊 Dashboard</h1>
+        <h1 className="text-2xl font-semibold text-foreground">📊 Dashboard</h1>
         <p className="text-muted-foreground">Your conversational insights at a glance</p>
       </div>
 
@@ -305,16 +305,16 @@ export default function DashboardPage() {
                   <div key={category} className="flex items-center gap-3">
                     <div className="flex items-center gap-2 w-40">
                       <span className="text-lg">{categoryEmojis[category as keyof typeof categoryEmojis] || '💡'}</span>
-                      <span className="text-sm font-medium text-gray-700">{category}</span>
+                      <span className="text-sm font-medium text-foreground">{category}</span>
                     </div>
-                    <div className="bg-gray-100 h-3 rounded-full flex-1 min-w-0">
+                    <div className="bg-muted h-3 rounded-full flex-1 min-w-0">
                       <div
-                        className={`h-3 rounded-full transition-all duration-300 ${categoryColors[category as keyof typeof categoryColors] || 'bg-gray-500'}`}
+                        className={`h-3 rounded-full transition-all duration-300 ${categoryColors[category as keyof typeof categoryColors] || 'bg-muted-foreground'}`}
                         style={{ width: `${widthPercent}%` }}
                       ></div>
                     </div>
                     <div className="w-12 text-right">
-                      <span className="text-sm font-bold text-gray-900">{count}</span>
+                      <span className="text-sm font-bold text-foreground">{count}</span>
                     </div>
                   </div>
                 );
