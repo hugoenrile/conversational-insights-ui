@@ -12,7 +12,7 @@ export const Card = ({
 } & React.HTMLAttributes<HTMLDivElement>) => {
   return (
     <div 
-      className={`bg-white rounded-xl shadow-sm ${className}`} 
+      className={`bg-card text-card-foreground rounded-xl shadow-sm border ${className}`} 
       onClick={onClick}
       {...props}
     >
@@ -22,11 +22,11 @@ export const Card = ({
 };
 
 export const CardHeader = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
-  return <div className={`p-4 border-b ${className}`}>{children}</div>;
+  return <div className={`p-4 border-b border-border ${className}`}>{children}</div>;
 };
 
 export const CardTitle = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
-  return <h3 className={`text-lg font-semibold text-gray-900 ${className}`}>{children}</h3>;
+  return <h3 className={`text-lg font-semibold text-card-foreground ${className}`}>{children}</h3>;
 };
 
 export const CardContent = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => {
