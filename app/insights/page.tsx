@@ -180,9 +180,9 @@ export default function InsightsPage() {
 
     return [
       ...baseColumns
-        .filter((col) => col.accessorKey !== "topics")
+        .filter((col) => "accessorKey" in col && col.accessorKey !== "topics")
         .map((col) => {
-          if (col.accessorKey === "text") {
+          if ("accessorKey" in col && col.accessorKey === "text") {
             return {
               ...col,
               cell: ({ row }: any) =>
