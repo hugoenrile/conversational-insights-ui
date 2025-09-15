@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { conversations, customers, insights } from "@/lib/mock-data";
 import { DataTable } from "@/components/data-table";
 import { conversationColumns } from "./columns";
@@ -28,13 +29,52 @@ import {
   X
 } from "lucide-react";
 
+const AnimatedNumber = ({ value, duration = 2000 }: { value: number; duration?: number }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let startTime: number;
+    let animationFrame: number;
+
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+      const currentValue = Math.floor(easeOutCubic * value);
+      
+      setDisplayValue(currentValue);
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [value, duration]);
+
+  return <span>{displayValue}</span>;
+};
+
 export default function ConversationsPage() {
   const searchParams = useSearchParams();
+  const [mounted, setMounted] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sentimentFilter, setSentimentFilter] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const type = searchParams.get('type');
@@ -106,103 +146,183 @@ export default function ConversationsPage() {
     setPriorityFilter(null);
   };
 
-  return (
+    return (
     <div className="p-6 space-y-6 bg-background">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">📞 Conversations</h1>
         <p className="text-muted-foreground">Manage and analyze your customer conversations</p>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Conversations</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <Card className="border hover:shadow-lg transition-all bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                </motion.div>
+                Total Conversations
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {mounted ? <AnimatedNumber value={stats.total} duration={1500} /> : stats.total}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">💬 All conversations</p>
+            </CardContent>
+          </Card>
+        </motion.div>
         
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <Card className="border hover:shadow-lg transition-all bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <motion.div
+                  animate={{ rotate: [0, 10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <TrendingUp className="h-4 w-4" />
+                </motion.div>
+                Completed
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {mounted ? <AnimatedNumber value={stats.completed} duration={1800} /> : stats.completed}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">✅ Successfully finished</p>
+            </CardContent>
+          </Card>
+        </motion.div>
         
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Scheduled</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.scheduled}</div>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <Card className="border hover:shadow-lg transition-all bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950/50 dark:to-orange-950/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <Calendar className="h-4 w-4" />
+                </motion.div>
+                Scheduled
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">
+                {mounted ? <AnimatedNumber value={stats.scheduled} duration={2000} /> : stats.scheduled}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">📅 Upcoming meetings</p>
+            </CardContent>
+          </Card>
+        </motion.div>
         
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Duration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{Math.round(stats.avgDuration)}m</div>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+        >
+          <Card className="border hover:shadow-lg transition-all bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <motion.div
+                  animate={{ rotate: [0, 15, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <Clock className="h-4 w-4" />
+                </motion.div>
+                Avg Duration
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">
+                {mounted ? <AnimatedNumber value={Math.round(stats.avgDuration)} duration={2200} /> : Math.round(stats.avgDuration)}m
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">⏱️ Average time</p>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
+      <motion.div 
+        className="flex flex-wrap gap-2 items-center"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.6 }}
+      >
         <div className="flex items-center gap-1 text-sm text-muted-foreground">
-          <Filter className="h-4 w-4" />
+          <motion.div
+            animate={{ rotate: [0, 360] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+          >
+            <Filter className="h-4 w-4" />
+          </motion.div>
           Filters:
         </div>
         
-        <select
+        <motion.select
           value={typeFilter || ""}
           onChange={(e) => setTypeFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded px-2 py-1 text-sm transition-all hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          whileFocus={{ scale: 1.02 }}
         >
           <option value="">All Types</option>
           <option value="call">Call</option>
           <option value="email">Email</option>
           <option value="chat">Chat</option>
-        </select>
+        </motion.select>
 
-        <select
+        <motion.select
           value={statusFilter || ""}
           onChange={(e) => setStatusFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded px-2 py-1 text-sm transition-all hover:border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-200"
+          whileFocus={{ scale: 1.02 }}
         >
           <option value="">All Status</option>
           <option value="completed">Completed</option>
           <option value="scheduled">Scheduled</option>
           <option value="cancelled">Cancelled</option>
-        </select>
+        </motion.select>
 
-        <select
+        <motion.select
           value={sentimentFilter || ""}
           onChange={(e) => setSentimentFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded px-2 py-1 text-sm transition-all hover:border-purple-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+          whileFocus={{ scale: 1.02 }}
         >
           <option value="">All Sentiments</option>
           <option value="positive">Positive</option>
           <option value="neutral">Neutral</option>
           <option value="negative">Negative</option>
-        </select>
+        </motion.select>
 
-        <select
+        <motion.select
           value={priorityFilter || ""}
           onChange={(e) => setPriorityFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded px-2 py-1 text-sm transition-all hover:border-orange-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+          whileFocus={{ scale: 1.02 }}
         >
           <option value="">All Priorities</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
-        </select>
-      </div>
+        </motion.select>
+      </motion.div>
 
       {/* Active filter chips */}
       {activeFilters.length > 0 && (
@@ -214,7 +334,7 @@ export default function ConversationsPage() {
             >
               {filter?.label}
               <button
-                onClick={filter.onRemove}
+                onClick={filter?.onRemove}
                 className="text-blue-600 hover:text-blue-900"
               >
                 <X size={14} />
@@ -233,19 +353,34 @@ export default function ConversationsPage() {
         </div>
       )}
 
-      {/* Results count */}
-      <div className="text-sm text-muted-foreground">
-        Showing {filteredConversations.length} of {enrichedConversations.length} conversations
-      </div>
+      <motion.div 
+        className="text-sm text-muted-foreground"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+      >
+        Showing <motion.span
+          key={filteredConversations.length}
+          initial={{ scale: 1.2, color: "#3b82f6" }}
+          animate={{ scale: 1, color: "inherit" }}
+          transition={{ duration: 0.3 }}
+        >
+          {filteredConversations.length}
+        </motion.span> of {enrichedConversations.length} conversations
+      </motion.div>
 
-      {/* Conversations Table */}
-      <DataTable
-        columns={conversationColumns}
-        data={filteredConversations}
-        onRowClick={(row) => setSelectedConversation(row.id)}
-      />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.9 }}
+      >
+        <DataTable
+          columns={conversationColumns}
+          data={filteredConversations}
+          onRowClick={(row) => setSelectedConversation(row.id)}
+        />
+      </motion.div>
 
-      {/* Conversation Details Dialog */}
       <Dialog
         open={!!selectedConversation}
         onOpenChange={() => setSelectedConversation(null)}
@@ -395,7 +530,7 @@ export default function ConversationsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
+      </div>
+    );
+  }
   
