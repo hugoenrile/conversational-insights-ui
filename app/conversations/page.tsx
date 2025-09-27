@@ -3,9 +3,10 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { conversations, customers, insights } from "@/lib/mock-data";
+import { useConversations } from "@/hooks/use-supabase-data";
 import { DataTable } from "@/components/data-table";
 import { conversationColumns } from "./columns";
+import { ConversationFilters } from "@/components/filters/conversation-filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,16 @@ export default function ConversationsPage() {
   const [sentimentFilter, setSentimentFilter] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
 
+  // Memoize filters to prevent unnecessary re-renders
+  const conversationFilters = useMemo(() => ({
+    type: typeFilter || undefined,
+    status: statusFilter || undefined,
+    priority: priorityFilter || undefined,
+  }), [typeFilter, statusFilter, priorityFilter]);
+
+  // Supabase data hooks
+  const { data: conversationsData, loading: conversationsLoading, error: conversationsError } = useConversations(conversationFilters);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -89,24 +100,35 @@ export default function ConversationsPage() {
   }, [searchParams]);
 
   const enrichedConversations = useMemo(() => {
-    return conversations.map((conversation) => {
-      const customer = customers.find((c) => c.id === conversation.customerId);
-      const conversationInsights = insights.filter((i) => i.conversationId === conversation.id);
-      
-      return {
-        ...conversation,
-        customerName: customer?.name || "Unknown",
-        customerIndustry: customer?.industry || "Unknown",
-        insightCount: conversationInsights.length,
-      };
-    });
-  }, []);
+    if (!conversationsData) return [];
+    
+    return conversationsData.map((conversation: any) => ({
+      id: conversation.id,
+      type: conversation.type,
+      subject: conversation.subject,
+      summary: conversation.summary,
+      date: conversation.created_at,
+      status: conversation.status,
+      priority: conversation.priority,
+      sentiment_score: conversation.sentiment_score,
+      duration_minutes: conversation.duration_minutes,
+      customerName: conversation.customer?.name || 'Unknown',
+      customerIndustry: conversation.customer?.industry || 'Unknown',
+      insightCount: 0, // Will be calculated separately if needed
+      participants: conversation.participants || [],
+      // Add missing properties for compatibility
+      customerId: conversation.customer_id,
+      sentiment: (conversation.sentiment_score > 0 ? 'positive' : conversation.sentiment_score < 0 ? 'negative' : 'neutral') as 'positive' | 'negative' | 'neutral',
+      tags: [],
+      duration: conversation.duration_minutes,
+    }));
+  }, [conversationsData]);
 
   const filteredConversations = useMemo(() => {
     return enrichedConversations.filter((conv) => {
       if (typeFilter && conv.type !== typeFilter) return false;
       if (statusFilter && conv.status !== statusFilter) return false;
-      if (sentimentFilter && conv.sentiment !== sentimentFilter) return false;
+      if (sentimentFilter && conv.sentiment_score !== sentimentFilter) return false;
       if (priorityFilter && conv.priority !== priorityFilter) return false;
       return true;
     });
@@ -116,21 +138,21 @@ export default function ConversationsPage() {
     ? enrichedConversations.find((c) => c.id === selectedConversation)
     : null;
 
-  const selectedInsights = selectedConversation
-    ? insights.filter((i) => i.conversationId === selectedConversation)
-    : [];
+  const selectedInsights: any[] = []; // Simplified for now - can be enhanced later
 
   const stats = useMemo(() => {
-    const total = conversations.length;
-    const completed = conversations.filter(c => c.status === 'completed').length;
-    const scheduled = conversations.filter(c => c.status === 'scheduled').length;
-    const totalDuration = conversations
-      .filter(c => c.duration)
-      .reduce((sum, c) => sum + (c.duration || 0), 0);
-    const avgDuration = totalDuration / conversations.filter(c => c.duration).length || 0;
+    if (!conversationsData) return { total: 0, completed: 0, scheduled: 0, avgDuration: 0 };
+    
+    const total = conversationsData.length;
+    const completed = conversationsData.filter((c: any) => c.status === 'completed').length;
+    const scheduled = conversationsData.filter((c: any) => c.status === 'scheduled').length;
+    const totalDuration = conversationsData
+      .filter((c: any) => c.duration_minutes)
+      .reduce((sum: number, c: any) => sum + (c.duration_minutes || 0), 0);
+    const avgDuration = totalDuration / conversationsData.filter((c: any) => c.duration_minutes).length || 0;
 
     return { total, completed, scheduled, avgDuration };
-  }, []);
+  }, [conversationsData]);
 
   const activeFilters = [
     typeFilter ? { label: `Type: ${typeFilter}`, onRemove: () => setTypeFilter(null) } : null,
@@ -145,6 +167,26 @@ export default function ConversationsPage() {
     setSentimentFilter(null);
     setPriorityFilter(null);
   };
+
+
+  if (conversationsError) {
+    return (
+      <div className="p-6 space-y-6 bg-background">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">📞 Conversations</h1>
+          <p className="text-muted-foreground">Unable to load conversations</p>
+        </div>
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 text-red-600">
+              <span>⚠️</span>
+              <span>Failed to load conversations data</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
     return (
     <div className="p-6 space-y-6 bg-background">
@@ -259,69 +301,24 @@ export default function ConversationsPage() {
         </motion.div>
       </div>
 
-      <motion.div 
-        className="flex flex-wrap gap-2 items-center"
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.6 }}
+        animate={{ 
+          opacity: conversationsLoading ? 0.7 : 1, 
+          y: 0 
+        }}
+        transition={{ duration: 0.3 }}
       >
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-          <motion.div
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-          >
-            <Filter className="h-4 w-4" />
-          </motion.div>
-          Filters:
-        </div>
-        
-        <motion.select
-          value={typeFilter || ""}
-          onChange={(e) => setTypeFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm transition-all hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-          whileFocus={{ scale: 1.02 }}
-        >
-          <option value="">All Types</option>
-          <option value="call">Call</option>
-          <option value="email">Email</option>
-          <option value="chat">Chat</option>
-        </motion.select>
-
-        <motion.select
-          value={statusFilter || ""}
-          onChange={(e) => setStatusFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm transition-all hover:border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-200"
-          whileFocus={{ scale: 1.02 }}
-        >
-          <option value="">All Status</option>
-          <option value="completed">Completed</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="cancelled">Cancelled</option>
-        </motion.select>
-
-        <motion.select
-          value={sentimentFilter || ""}
-          onChange={(e) => setSentimentFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm transition-all hover:border-purple-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
-          whileFocus={{ scale: 1.02 }}
-        >
-          <option value="">All Sentiments</option>
-          <option value="positive">Positive</option>
-          <option value="neutral">Neutral</option>
-          <option value="negative">Negative</option>
-        </motion.select>
-
-        <motion.select
-          value={priorityFilter || ""}
-          onChange={(e) => setPriorityFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm transition-all hover:border-orange-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
-          whileFocus={{ scale: 1.02 }}
-        >
-          <option value="">All Priorities</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </motion.select>
+        <ConversationFilters
+          typeFilter={typeFilter}
+          statusFilter={statusFilter}
+          sentimentFilter={sentimentFilter}
+          priorityFilter={priorityFilter}
+          onTypeChange={setTypeFilter}
+          onStatusChange={setStatusFilter}
+          onSentimentChange={setSentimentFilter}
+          onPriorityChange={setPriorityFilter}
+        />
       </motion.div>
 
       {/* Active filter chips */}
@@ -362,7 +359,7 @@ export default function ConversationsPage() {
         Showing <motion.span
           key={filteredConversations.length}
           initial={{ scale: 1.2, color: "#3b82f6" }}
-          animate={{ scale: 1, color: "inherit" }}
+          animate={{ scale: 1, color: "#64748b" }}
           transition={{ duration: 0.3 }}
         >
           {filteredConversations.length}
@@ -374,11 +371,25 @@ export default function ConversationsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.9 }}
       >
-        <DataTable
-          columns={conversationColumns}
-          data={filteredConversations}
-          onRowClick={(row) => setSelectedConversation(row.id)}
-        />
+        <Card className="border hover:shadow-md transition-shadow relative">
+          {conversationsLoading && (
+            <div className="absolute inset-0 bg-white/60 dark:bg-black/60 rounded-lg flex items-center justify-center z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm text-muted-foreground">Updating conversations...</span>
+              </div>
+            </div>
+          )}
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <DataTable
+                columns={conversationColumns}
+                data={filteredConversations}
+                onRowClick={(row) => setSelectedConversation(row.id)}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
 
       <Dialog
@@ -473,12 +484,17 @@ export default function ConversationsPage() {
                 <div className="space-y-2">
                   <h3 className="font-semibold">Participants</h3>
                   <div className="space-y-1">
-                    {selectedConv.participants.map((participant, idx) => (
-                      <div key={idx} className="text-sm flex items-center gap-2">
-                        <Users className="h-3 w-3" />
-                        {participant}
-                      </div>
-                    ))}
+                    {selectedConv.participants && selectedConv.participants.length > 0 ? (
+                      selectedConv.participants.map((participant: any, idx: number) => (
+                        <div key={idx} className="text-sm flex items-center gap-2">
+                          <Users className="h-3 w-3" />
+                          <span className="font-medium">{participant?.name || 'Unknown'}</span>
+                          <span className="text-muted-foreground">({participant?.role || 'participant'})</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No participants listed</div>
+                    )}
                   </div>
                 </div>
 
@@ -486,7 +502,7 @@ export default function ConversationsPage() {
                 <div className="space-y-2">
                   <h3 className="font-semibold">Tags</h3>
                   <div className="flex flex-wrap gap-1">
-                    {selectedConv.tags.map((tag) => (
+                    {selectedConv.tags.map((tag: string, idx: number) => (
                       <Badge key={tag} variant="secondary">
                         <Tag className="h-3 w-3 mr-1" />
                         {tag}
@@ -503,11 +519,11 @@ export default function ConversationsPage() {
                       Related Insights ({selectedInsights.length})
                     </h3>
                     <div className="space-y-3">
-                      {selectedInsights.map((insight) => (
+                        {selectedInsights.map((insight: any, idx: number) => (
                         <div key={insight.id} className="p-3 border rounded-lg">
                           <div className="flex items-center gap-2 mb-2">
                             <Badge variant="secondary">{insight.category}</Badge>
-                            {insight.topics?.map((topic) => (
+                            {insight.topics?.map((topic: string, topicIdx: number) => (
                               <Badge key={topic} variant="secondary" className="text-xs">
                                 {topic}
                               </Badge>

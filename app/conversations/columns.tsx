@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Conversation } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Mail, MessageSquare, Clock, Users } from "lucide-react";
+import { Phone, Mail, MessageSquare, Video, Clock, Users } from "lucide-react";
 
 export const conversationColumns: ColumnDef<
   Conversation & {
@@ -31,11 +31,13 @@ export const conversationColumns: ColumnDef<
         call: <Phone className="h-4 w-4" />,
         email: <Mail className="h-4 w-4" />,
         chat: <MessageSquare className="h-4 w-4" />,
+        meeting: <Video className="h-4 w-4" />,
       };
       const colors = {
         call: "bg-green-100 text-green-800",
         email: "bg-blue-100 text-blue-800", 
         chat: "bg-purple-100 text-purple-800",
+        meeting: "bg-orange-100 text-orange-800",
       };
       return (
         <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors[type as keyof typeof colors]}`}>

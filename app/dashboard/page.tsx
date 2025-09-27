@@ -8,11 +8,16 @@ import { SkeletonStats, SkeletonTable } from "@/components/ui/skeleton";
 import { DataTable } from "@/components/data-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { conversations, customers, insights } from "@/lib/mock-data";
+import { 
+  useDashboardKPIs, 
+  useRecentInsights, 
+  useInsightsByCategory 
+} from "@/hooks/use-supabase-data";
 import { 
   Phone, 
   Mail, 
   MessageSquare, 
+  Video,
   Calendar, 
   Lightbulb,
   TrendingUp,
@@ -41,11 +46,13 @@ export const dashboardColumns = [
         call: <Phone className="h-3 w-3" />,
         email: <Mail className="h-3 w-3" />,
         chat: <MessageSquare className="h-3 w-3" />,
+        meeting: <Video className="h-3 w-3" />,
       };
       const colors = {
         call: "bg-green-100 text-green-800",
         email: "bg-blue-100 text-blue-800", 
         chat: "bg-purple-100 text-purple-800",
+        meeting: "bg-orange-100 text-orange-800",
       };
       return (
         <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors[type as keyof typeof colors] || 'bg-gray-100 text-gray-800'}`}>
@@ -74,28 +81,30 @@ export const dashboardColumns = [
     cell: ({ row }: any) => {
       const category = row.getValue("category") as string;
       const categoryColors = {
-        "Pain Point": "bg-red-100 text-red-800",
-        "Opportunity": "bg-green-100 text-green-800",
-        "Objection": "bg-orange-100 text-orange-800",
-        "Request": "bg-blue-100 text-blue-800",
-        "Issue": "bg-red-100 text-red-800",
-        "Success": "bg-emerald-100 text-emerald-800",
-        "Update": "bg-indigo-100 text-indigo-800",
+        "pain_point": "bg-red-100 text-red-800",
+        "opportunity": "bg-green-100 text-green-800",
+        "objection": "bg-orange-100 text-orange-800",
+        "request": "bg-blue-100 text-blue-800",
+        "issue": "bg-red-100 text-red-800",
+        "success": "bg-emerald-100 text-emerald-800",
+        "update": "bg-indigo-100 text-indigo-800",
       };
       const categoryEmojis = {
-        "Pain Point": "😣",
-        "Opportunity": "🚀",
-        "Objection": "🤔",
-        "Request": "📝",
-        "Issue": "⚠️",
-        "Success": "🎉",
-        "Update": "📊",
+        "pain_point": "😣",
+        "opportunity": "🚀",
+        "objection": "🤔",
+        "request": "📝",
+        "issue": "⚠️",
+        "success": "🎉",
+        "update": "📊",
       };
+      
+      const displayCategory = category?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
       
       return (
         <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${categoryColors[category as keyof typeof categoryColors] || 'bg-gray-100 text-gray-800'}`}>
           <span>{categoryEmojis[category as keyof typeof categoryEmojis] || '💡'}</span>
-          {category}
+          {displayCategory}
         </div>
       );
     },
@@ -172,54 +181,66 @@ const AnimatedNumber = ({ value, duration = 2000 }: { value: number; duration?: 
 export default function DashboardPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+
+  // Supabase data hooks
+  const { data: kpis, loading: kpisLoading, error: kpisError } = useDashboardKPIs();
+  const { data: recentInsightsData, loading: insightsLoading, error: insightsError } = useRecentInsights(5);
+  const { data: categoryData, loading: categoryLoading, error: categoryError } = useInsightsByCategory();
+
+  const isLoading = kpisLoading || insightsLoading || categoryLoading;
+  const hasError = kpisError || insightsError || categoryError;
 
   useEffect(() => {
     setMounted(true);
-    setIsLoading(false);
-    const lastDashboardVisit = sessionStorage.getItem('last-dashboard-visit');
-    const now = Date.now();
-    const fiveMinutes = 5 * 60 * 1000;
-    
-    if (!lastDashboardVisit || (now - parseInt(lastDashboardVisit)) > fiveMinutes) {
-      toast.success("📊 Welcome back!", {
-        description: "Your dashboard is ready",
-        duration: 2000,
-      });
-      sessionStorage.setItem('last-dashboard-visit', now.toString());
+    if (!isLoading && !hasError) {
+      const lastDashboardVisit = sessionStorage.getItem('last-dashboard-visit');
+      const now = Date.now();
+      const fiveMinutes = 5 * 60 * 1000;
+      
+      if (!lastDashboardVisit || (now - parseInt(lastDashboardVisit)) > fiveMinutes) {
+        toast.success("📊 Welcome back!", {
+          description: "Your dashboard is ready",
+          duration: 2000,
+        });
+        sessionStorage.setItem('last-dashboard-visit', now.toString());
+      }
     }
-  }, []);
+  }, [isLoading, hasError]);
 
-  const totalInsights = insights.length;
-  const totalCustomers = useMemo(() => new Set(conversations.map((c) => c.customerId)).size, []);
-  const totalCalls = useMemo(() => conversations.filter((c) => c.type === "call").length, []);
+  // Transform Supabase data for display
+  const totalInsights = kpis?.totalInsights || 0;
+  const totalCustomers = kpis?.activeCustomers || 0;
+  const totalCalls = kpis?.totalCalls || 0;
 
   const recentInsights = useMemo(() => {
-    return [...insights]
-      .slice(-5)
-      .reverse()
-      .map((insight) => {
-        const conversation = conversations.find((c) => c.id === insight.conversationId);
-        const customer = conversation
-          ? customers.find((cust) => cust.id === conversation.customerId)
-          : null;
-        return {
-          ...insight,
-          conversationType: conversation?.type || "",
-          date: conversation?.date || "",
-          customerName: customer?.name || "",
-          customerIndustry: customer?.industry || "",
-        };
-      });
-  }, []);
+    if (!recentInsightsData) return [];
+    
+    return recentInsightsData.map((insight: any) => ({
+      id: insight.id,
+      text: insight.text,
+      category: insight.category,
+      topics: insight.topics || [],
+      conversationType: insight.conversation?.type || "",
+      date: insight.conversation?.created_at ? 
+        new Date(insight.conversation.created_at).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'numeric', 
+          day: 'numeric' 
+        }) : "",
+      customerName: insight.customer?.name || "",
+      customerIndustry: insight.customer?.industry || "",
+    }));
+  }, [recentInsightsData]);
 
   const categoryCounts = useMemo(() => {
+    if (!categoryData) return {};
+    
     const counts: Record<string, number> = {};
-    insights.forEach((i) => {
-      counts[i.category] = (counts[i.category] || 0) + 1;
+    categoryData.forEach((item: any) => {
+      counts[item.name] = item.value;
     });
     return counts;
-  }, []);
+  }, [categoryData]);
 
   const maxCount = Math.max(...Object.values(categoryCounts));
 
@@ -240,6 +261,28 @@ export default function DashboardPage() {
           </div>
           <SkeletonTable rows={5} />
         </div>
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="p-6 space-y-8 bg-background">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">📊 Dashboard</h1>
+          <p className="text-muted-foreground">Unable to load dashboard data</p>
+        </div>
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 text-red-600">
+              <span>⚠️</span>
+              <span>Failed to connect to database. Please check your Supabase configuration.</span>
+            </div>
+            <p className="text-sm text-red-500 mt-2">
+              Make sure your environment variables are set correctly in .env.local
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -466,23 +509,25 @@ export default function DashboardPage() {
                 {Object.entries(categoryCounts).map(([category, count], index) => {
                   const widthPercent = (count / maxCount) * 100;
                   const categoryColors = {
-                    "Pain Point": "bg-red-500",
-                    "Opportunity": "bg-green-500",
-                    "Objection": "bg-orange-500",
-                    "Request": "bg-blue-500",
-                    "Issue": "bg-red-500",
-                    "Success": "bg-emerald-500",
-                    "Update": "bg-indigo-500",
+                    "pain_point": "bg-red-500",
+                    "opportunity": "bg-green-500",
+                    "objection": "bg-orange-500",
+                    "request": "bg-blue-500",
+                    "issue": "bg-red-500",
+                    "success": "bg-emerald-500",
+                    "update": "bg-indigo-500",
                   };
                   const categoryEmojis = {
-                    "Pain Point": "😣",
-                    "Opportunity": "🚀",
-                    "Objection": "🤔",
-                    "Request": "📝",
-                    "Issue": "⚠️",
-                    "Success": "🎉",
-                    "Update": "📊",
+                    "pain_point": "😣",
+                    "opportunity": "🚀",
+                    "objection": "🤔",
+                    "request": "📝",
+                    "issue": "⚠️",
+                    "success": "🎉",
+                    "update": "📊",
                   };
+                  
+                  const displayCategory = category?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown';
                   
                   return (
                     <motion.div 
@@ -501,7 +546,7 @@ export default function DashboardPage() {
                         >
                           {categoryEmojis[category as keyof typeof categoryEmojis] || '💡'}
                         </motion.span>
-                        <span className="text-sm font-medium text-foreground">{category}</span>
+                        <span className="text-sm font-medium text-foreground">{displayCategory}</span>
                       </div>
                       <div className="bg-muted h-3 rounded-full flex-1 min-w-0 overflow-hidden">
                         <motion.div

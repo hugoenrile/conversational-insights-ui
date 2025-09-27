@@ -10,18 +10,22 @@ type FilterProps = {
 };
 
 export function CategoryFilter({ categories, selected, onSelect }: FilterProps) {
+  const formatCategory = (category: string) => {
+    return category?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || category;
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline">
-          {selected ? `Category: ${selected}` : "Filter by Category"}
+          {selected ? `Category: ${formatCategory(selected)}` : "Filter by Category"}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={() => onSelect(null)}>All</DropdownMenuItem>
         {categories.map((cat) => (
           <DropdownMenuItem key={cat} onClick={() => onSelect(cat)}>
-            {cat}
+            {formatCategory(cat)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

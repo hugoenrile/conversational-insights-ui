@@ -146,23 +146,33 @@ export const customerColumns: ColumnDef<
     },
   },
   {
-    accessorKey: "health",
+    accessorKey: "health_score",
     header: "Health",
     cell: ({ row }) => {
-      const health = row.getValue("health") as string;
-      const healthConfig = {
-        excellent: { color: "bg-emerald-100 text-emerald-800", emoji: "💚" },
-        good: { color: "bg-green-100 text-green-800", emoji: "💛" },
-        "at-risk": { color: "bg-orange-100 text-orange-800", emoji: "🧡" },
-        critical: { color: "bg-red-100 text-red-800", emoji: "❤️" },
-      };
+      const healthScore = row.getValue("health_score") as number;
       
-      const config = healthConfig[health as keyof typeof healthConfig];
+      let health: string;
+      let config: { color: string; emoji: string };
+      
+      if (healthScore >= 80) {
+        health = "excellent";
+        config = { color: "bg-emerald-100 text-emerald-800", emoji: "💚" };
+      } else if (healthScore >= 60) {
+        health = "good";
+        config = { color: "bg-green-100 text-green-800", emoji: "💛" };
+      } else if (healthScore >= 40) {
+        health = "at-risk";
+        config = { color: "bg-orange-100 text-orange-800", emoji: "🧡" };
+      } else {
+        health = "critical";
+        config = { color: "bg-red-100 text-red-800", emoji: "❤️" };
+      }
       
       return (
         <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
           <span>{config.emoji}</span>
-          {health.charAt(0).toUpperCase() + health.slice(1)}
+          <span className="font-medium">{healthScore}%</span>
+          <span className="text-xs opacity-75">({health})</span>
         </div>
       );
     },
@@ -188,11 +198,27 @@ export const customerColumns: ColumnDef<
     accessorKey: "location",
     header: "Location",
     cell: ({ row }) => {
-      const location = row.getValue("location") as string;
+      const location = row.getValue("location") as any;
+      
+      // Handle JSON object location
+      if (location && typeof location === 'object') {
+        const locationStr = [location.city, location.state, location.country]
+          .filter(Boolean)
+          .join(', ');
+        
+        return (
+          <div className="flex items-center gap-1 text-sm">
+            <MapPin className="h-3 w-3 text-muted-foreground" />
+            {locationStr || 'Unknown'}
+          </div>
+        );
+      }
+      
+      // Handle string location (fallback)
       return (
         <div className="flex items-center gap-1 text-sm">
           <MapPin className="h-3 w-3 text-muted-foreground" />
-          {location}
+          {location || 'Unknown'}
         </div>
       );
     },
@@ -261,28 +287,6 @@ export const customerColumns: ColumnDef<
           <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
             💡 {count}
           </span>
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "tags",
-    header: "Tags",
-    cell: ({ row }) => {
-      const tags = row.getValue("tags") as string[];
-      return (
-        <div className="flex flex-wrap gap-1 max-w-xs">
-          {tags.slice(0, 2).map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-xs">
-              <Tag className="h-2 w-2 mr-1" />
-              {tag}
-            </Badge>
-          ))}
-          {tags.length > 2 && (
-            <Badge variant="secondary" className="text-xs">
-              +{tags.length - 2}
-            </Badge>
-          )}
         </div>
       );
     },

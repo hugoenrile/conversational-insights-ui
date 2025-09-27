@@ -3,9 +3,10 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { customers, conversations, insights } from "@/lib/mock-data";
+import { useCustomers, useCustomerCounts } from "@/hooks/use-supabase-data";
 import { DataTable } from "@/components/data-table";
 import { customerColumns } from "./columns";
+import { CustomerFilters } from "@/components/filters/customer-filters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,17 @@ export default function CustomersPage() {
   const [tierFilter, setTierFilter] = useState<string | null>(null);
   const [healthFilter, setHealthFilter] = useState<string | null>(null);
   const [sizeFilter, setSizeFilter] = useState<string | null>(null);
+  const [industryFilter, setIndustryFilter] = useState<string | null>(null);
+
+  // Memoize filters to prevent unnecessary re-renders
+  const customerFilters = useMemo(() => ({
+    status: statusFilter || undefined,
+    tier: tierFilter || undefined,
+  }), [statusFilter, tierFilter]);
+
+  // Supabase data hooks
+  const { data: customersData, loading: customersLoading, error: customersError } = useCustomers(customerFilters);
+  const { data: customerCounts, loading: countsLoading } = useCustomerCounts();
 
   useEffect(() => {
     setMounted(true);
@@ -98,50 +110,57 @@ export default function CustomersPage() {
   }, [searchParams]);
 
   const enrichedCustomers = useMemo(() => {
-    return customers.map((customer) => {
-      const customerConversations = conversations.filter((c) => c.customerId === customer.id);
-      const customerInsights = insights.filter((i) => {
-        const conversation = conversations.find((c) => c.id === i.conversationId);
-        return conversation?.customerId === customer.id;
-      });
-      
-      const lastConversation = customerConversations
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-      
-      return {
-        ...customer,
-        conversationCount: customerConversations.length,
-        insightCount: customerInsights.length,
-        lastConversationType: lastConversation?.type,
-      };
-    });
-  }, []);
+    if (!customersData) return [];
+    
+    return customersData.map((customer: any) => ({
+      id: customer.id,
+      name: customer.name,
+      industry: customer.industry,
+      size: customer.size,
+      tier: customer.tier,
+      status: customer.status,
+      health_score: customer.health_score,
+      revenue: customer.revenue,
+      location: customer.location,
+      contact_info: customer.contact_info,
+      created_at: customer.created_at,
+      updated_at: customer.updated_at,
+      conversationCount: customerCounts?.conversationCounts.get(customer.id) || 0,
+      insightCount: customerCounts?.insightCounts.get(customer.id) || 0,
+      lastActivity: customer.updated_at,
+      tags: [], // No tags field in Supabase schema
+    }));
+  }, [customersData, customerCounts]);
 
   const stats = useMemo(() => {
-    const totalCustomers = customers.length;
-    const activeCustomers = customers.filter(c => c.status === 'active').length;
-    const totalRevenue = customers.reduce((sum, c) => sum + (c.revenue || 0), 0);
-    const avgRevenue = totalRevenue / customers.filter(c => c.revenue).length || 0;
-    const atRiskCustomers = customers.filter(c => c.health === 'at-risk' || c.health === 'critical').length;
+    if (!customersData) return { totalCustomers: 0, activeCustomers: 0, totalRevenue: 0, avgRevenue: 0, atRiskCustomers: 0 };
+    
+    const totalCustomers = customersData.length;
+    const activeCustomers = customersData.filter((c: any) => c.status === 'active').length;
+    const totalRevenue = customersData.reduce((sum: number, c: any) => sum + (c.revenue || 0), 0);
+    const avgRevenue = totalRevenue / customersData.filter((c: any) => c.revenue).length || 0;
+    const atRiskCustomers = customersData.filter((c: any) => c.health_score && c.health_score < 50).length;
 
     return { totalCustomers, activeCustomers, totalRevenue, avgRevenue, atRiskCustomers };
-  }, []);
+  }, [customersData]);
 
   const filteredCustomers = useMemo(() => {
     return enrichedCustomers.filter((customer) => {
       if (statusFilter && customer.status !== statusFilter) return false;
       if (tierFilter && customer.tier !== tierFilter) return false;
-      if (healthFilter && customer.health !== healthFilter) return false;
+      if (healthFilter && customer.health_score !== healthFilter) return false;
       if (sizeFilter && customer.size !== sizeFilter) return false;
+      if (industryFilter && customer.industry?.toLowerCase() !== industryFilter.toLowerCase()) return false;
       return true;
     });
-  }, [enrichedCustomers, statusFilter, tierFilter, healthFilter, sizeFilter]);
+  }, [enrichedCustomers, statusFilter, tierFilter, healthFilter, sizeFilter, industryFilter]);
 
   const activeFilters = [
     statusFilter ? { label: `Status: ${statusFilter}`, onRemove: () => setStatusFilter(null) } : null,
     tierFilter ? { label: `Tier: ${tierFilter}`, onRemove: () => setTierFilter(null) } : null,
     healthFilter ? { label: `Health: ${healthFilter}`, onRemove: () => setHealthFilter(null) } : null,
     sizeFilter ? { label: `Size: ${sizeFilter}`, onRemove: () => setSizeFilter(null) } : null,
+    industryFilter ? { label: `Industry: ${industryFilter}`, onRemove: () => setIndustryFilter(null) } : null,
   ].filter(Boolean);
 
   const clearAllFilters = () => {
@@ -149,9 +168,30 @@ export default function CustomersPage() {
     setTierFilter(null);
     setHealthFilter(null);
     setSizeFilter(null);
+    setIndustryFilter(null);
   };
 
-  return (
+
+  if (customersError) {
+    return (
+      <div className="p-6 space-y-6 bg-background">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">👥 Customers</h1>
+          <p className="text-muted-foreground">Unable to load customers</p>
+        </div>
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 text-red-600">
+              <span>⚠️</span>
+              <span>Failed to load customers data</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+    return (
     <div className="p-6 space-y-6 bg-background">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">👥 Customers</h1>
@@ -290,74 +330,24 @@ export default function CustomersPage() {
         </motion.div>
       </div>
 
-      <motion.div 
-        className="flex flex-wrap gap-2 items-center"
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.7 }}
+        animate={{ 
+          opacity: (customersLoading || countsLoading) ? 0.7 : 1, 
+          y: 0 
+        }}
+        transition={{ duration: 0.3 }}
       >
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-          <motion.div
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-          >
-            <Filter className="h-4 w-4" />
-          </motion.div>
-          Filters:
-        </div>
-        
-        <motion.select
-          value={statusFilter || ""}
-          onChange={(e) => setStatusFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm transition-all hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-          whileFocus={{ scale: 1.02 }}
-        >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="prospect">Prospect</option>
-          <option value="churned">Churned</option>
-        </motion.select>
-
-        <motion.select
-          value={tierFilter || ""}
-          onChange={(e) => setTierFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm transition-all hover:border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-200"
-          whileFocus={{ scale: 1.02 }}
-        >
-          <option value="">All Plans</option>
-          <option value="free">Free</option>
-          <option value="basic">Basic</option>
-          <option value="pro">Pro</option>
-          <option value="enterprise">Enterprise</option>
-        </motion.select>
-
-        <motion.select
-          value={healthFilter || ""}
-          onChange={(e) => setHealthFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm transition-all hover:border-purple-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
-          whileFocus={{ scale: 1.02 }}
-        >
-          <option value="">All Health</option>
-          <option value="excellent">Excellent</option>
-          <option value="good">Good</option>
-          <option value="at-risk">At Risk</option>
-          <option value="critical">Critical</option>
-        </motion.select>
-
-        <motion.select
-          value={sizeFilter || ""}
-          onChange={(e) => setSizeFilter(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm transition-all hover:border-orange-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
-          whileFocus={{ scale: 1.02 }}
-        >
-          <option value="">All Sizes</option>
-          <option value="startup">Startup</option>
-          <option value="small">Small</option>
-          <option value="medium">Medium</option>
-          <option value="large">Large</option>
-          <option value="enterprise">Enterprise</option>
-        </motion.select>
+        <CustomerFilters
+          statusFilter={statusFilter}
+          tierFilter={tierFilter}
+          sizeFilter={sizeFilter}
+          industryFilter={industryFilter}
+          onStatusChange={setStatusFilter}
+          onTierChange={setTierFilter}
+          onSizeChange={setSizeFilter}
+          onIndustryChange={setIndustryFilter}
+        />
       </motion.div>
 
       {activeFilters.length > 0 && (
@@ -397,7 +387,7 @@ export default function CustomersPage() {
         Showing <motion.span
           key={filteredCustomers.length}
           initial={{ scale: 1.2, color: "#3b82f6" }}
-          animate={{ scale: 1, color: "inherit" }}
+          animate={{ scale: 1, color: "#64748b" }}
           transition={{ duration: 0.3 }}
         >
           {filteredCustomers.length}
@@ -409,13 +399,27 @@ export default function CustomersPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 1.0 }}
       >
-        <DataTable
-          columns={customerColumns}
-          data={filteredCustomers}
-          onRowClick={(row) => setSelectedCustomer(row.id)}
-        />
+        <Card className="border hover:shadow-md transition-shadow relative">
+          {(customersLoading || countsLoading) && (
+            <div className="absolute inset-0 bg-white/60 dark:bg-black/60 rounded-lg flex items-center justify-center z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm text-muted-foreground">Updating customers...</span>
+              </div>
+            </div>
+          )}
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <DataTable
+                columns={customerColumns}
+                data={filteredCustomers as any[]}
+                onRowClick={(row) => setSelectedCustomer(row.id)}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
-    </div>
-  );
-}
+      </div>
+    );
+  }
   
